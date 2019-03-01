@@ -1,0 +1,10 @@
+\.Rproj.user
+\data
+.Rhistory
+*.RData
+*.rdata
+*.Ruserdata
+*.Rproj
+*.rdata
+*.csv
+*.txt
