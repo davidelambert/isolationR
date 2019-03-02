@@ -188,6 +188,7 @@ round(cor(nels[, c(iso_names)]), 3)
 
 
 ## CRONBACH'S ALPHAS ON WHOLE SET AND JUST ISOLATION SUBSET
+
 ## first, create isolation subset
 iso_sub <- c("popul", "social", "imptnt", "leadgrp")
 
@@ -208,45 +209,75 @@ iso_a.sub$total[2]
 
 
 
-## COMPUTE PRINCIPAL COMPONENTS & LOADINGS
+## COMPUTE PRINCIPAL COMPONENTS & LOADINGS ====
 
-## subset for efficiency
-iso_only <- subset(nels, select = c(stu_id, c(iso_sub)))
+## create subset for efficiency
+iso_only <- nels %>% 
+  select(stu_id, c(iso_sub))
 
-## Using PCA() from FactoMineR
-iso_pca1 <- PCA(iso_only, graph = FALSE)
-  
-  ## get eigenvalues. consistent w/ stata!
-  iso_pca1$eig
-  
-  ## get correlations. also consistent with stata!
-  iso_pca1$var$coord
-  
-  
-  
-  
-
-
-## Using prcomp() from base
-iso_pca2 <- prcomp(iso_only, scale. = TRUE, retx = TRUE)
-
-  ## get eigenvalues by squaring the sdev vector
-  ## matches PCA() results and stata
-  ## method from: https://stat.ethz.ch/pipermail/r-help/2005-August/076610.html
-  iso_pca2$sdev^2
-  
-  
-  ## get predicted vars
-  iso_pred2 <-  data.frame(predict(iso_pca2))
-  head(iso_pred2)
+## convert stu_id to rownnames for matching later
+## need a data.frame, not a tibble
+iso_only <- as.data.frame(iso_only)
+## assign rownames
+rownames(iso_only) <- iso_only[, 1]
+## drop stu_id column
+iso_only <- iso_only[,-1]
+## loks good!
+head(iso_only)
 
 
 
-## Using princomp()
-iso_pca3 <- princomp(iso_only, scores = TRUE, cor = TRUE)
-summary(iso_pca3)
-iso_pca3$sdev^2
+## compute PCA scores
 
-loadings(iso_pca3)
+## using psych::principal
+iso_pca <- principal(iso_only, rotate = "varimax", scores = TRUE)
+## consistent w/ stata! only 1 factor retained, just like stata
+head(iso_pca4$scores)
+## further stata checks:
+  iso_pca$values ## eigenvalues - good!
+  iso_pca$loadings ## loadings - good!
+  1 - iso_pca$communality ## uniqueness - good!
+    
+    # ## ALL THE METHODS BELOW DO *NOT* PROVIDE *ROTATED* LOADINGS AND SCORES
+    # ## I DON'T REMEMBER WHY ROTATING WAS IMPORTANT, BUT THAT'S WHAT WE DID
+    # ## IN STATA. THERE ARE OTHER WAYS TO GET THEM, PROVIDED HERE:
+    # ## https://stats.stackexchange.com/questions/59213/
+    # ## how-to-compute-varimax-rotated-principal-components-in-r
+    # ## PRESERVED FOR REFERENCE ONLY.
+    #   ## Using PCA() from FactoMineR
+    #   iso_pca1 <- PCA(iso_only, graph = FALSE)
+    #     
+    #     ## get eigenvalues. consistent w/ stata!
+    #     iso_pca1$eig
+    #     
+    #     ## get correlations. also consistent with stata!
+    #     iso_pca1$var$coord
+    #     
+    #   
+    #   ## Using prcomp() from base
+    #   iso_pca2 <- prcomp(iso_only, scale. = TRUE, retx = TRUE)
+    #   
+    #     ## get eigenvalues by squaring the sdev vector
+    #     ## matches PCA() results and stata
+    #     ## method from: https://stat.ethz.ch/pipermail/r-help/2005-August/076610.html
+    #     iso_pca2$sdev^2
+    #     
+    #     
+    #     ## get predicted vars
+    #     iso_pred2 <-  data.frame(predict(iso_pca2))
+    #     head(iso_pred2)
+    #     
+    #     ## get ROTATION for prediction
+    #     
+    #     
+    #   ## Using princomp()
+    #   iso_pca3 <- princomp(iso_only, scores = TRUE, cor = TRUE)
+    #   summary(iso_pca3)
+    #   iso_pca3$sdev^2
+    #   
+    #   loadings(iso_pca3)
+    #   
+    #   head(iso_pca3$scores)
 
-iso_pca3$scores[1:10]
+
+
