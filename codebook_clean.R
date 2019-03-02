@@ -1,7 +1,7 @@
 ## IMPORT & SETUP ====
 
 ## for correlation matrices w/ significance stars
-library(Hmisc)
+## library(Hmisc) prob can just do with corr()
 
 ## for detailed descriptives & Cronbach's alpha
 library(psych)
@@ -15,7 +15,7 @@ library(tidyverse)
 library(FactoMineR)
 
 ## import csv. takes a few minutes (like 2 on current machine)
-nels <- read_csv("nels_88_92_stmeg_v1_0.csv")
+nels <- read_csv("data/nels_88_92_stmeg_v1_0.csv")
 ## give colums lowercase names
 names(nels) <- tolower(names(nels))
 ## create backup for when you fuck up
@@ -145,14 +145,21 @@ describe(nels[, c(iso_vars)])
 
 
 
-## rename them something more descriptive
-## first create vector of desriptive names
-iso_names <- c("popul", "athl", "social", "gdstud",
-               "imptnt", "trble", "leader", "misfit")
-## select by old names, apply new names
+## make new columns with descriptive names (preserving orgininals)
 nels <- nels %>% 
-  select(c(iso_vars)) %>% 
-  `colnames<-`(c(iso_names))
+  mutate(popul = f1s67a) %>% 
+  mutate(athl = f1s67b) %>% 
+  mutate(social = f1s67c) %>% 
+  mutate(gdstud = f1s67d) %>% 
+  mutate(imptnt = f1s67e) %>% 
+  mutate(trbl = f1s67f) %>% 
+  mutate(leadgrp = f1s67g) %>% 
+  mutate(nogrp = f1s67h)
+
+
+## create vector of desriptive names
+iso_names <- c("popul", "athl", "social", "gdstud",
+               "imptnt", "trbl", "leadgrp", "nogrp")
 ## looks good!
 describe(nels[, c(iso_names)])
 
@@ -163,21 +170,26 @@ describe(nels[, c(iso_names)])
 ## ISOLATION PRINCIPAL COMPONENTS ====
 
 ## GET CORRELATION MATRIX & P-VALUES
-## using some subesetting methods that create new objects
-## this may be more efficient for coding in the long run
-## this is why you need to get smarter at coding efficiency!
-iso_corrmat <- rcorr(as.matrix(nels[, c(iso_names)]), type = "pearson")
-## return Pearson's r. consistent w/ stata
-round(iso_corrmat$r, digits = 2)
-## return p-values on test of difference from 0.
-## all sig. except (trouble-maker, important)
-round(iso_corrmat$P, digits = 3)
+
+  # ## THIS USES THE Hmisc package & isn't necessary
+  #   ## using some subesetting methods that create new objects
+  #   ## this may be more efficient for coding in the long run
+  #   ## this is why you need to get smarter at coding efficiency!
+  #   iso_corrmat <- rcorr(as.matrix(nels[, c(iso_names)]), type = "pearson")
+  #   ## return Pearson's r. consistent w/ stata
+  #   round(iso_corrmat$r, digits = 2)
+  #   ## return p-values on test of difference from 0.
+  #   ## all sig. except (trouble-maker, important)
+  #   round(iso_corrmat$P, digits = 3)
+
+## Correlation matrix
+round(cor(nels[, c(iso_names)]), 3)
 
 
 
 ## CRONBACH'S ALPHAS ON WHOLE SET AND JUST ISOLATION SUBSET
 ## first, create isolation subset
-iso_sub <- c("popul", "social", "imptnt", "leader")
+iso_sub <- c("popul", "social", "imptnt", "leadgrp")
 
 ## alpha on entire set - DOES NOT MATCH STATA!
 iso_a.all <- psych::alpha(nels[, c(iso_names)])
@@ -187,7 +199,7 @@ iso_a.all$total[2]
 ## think I remember some exclusion in stata??
 ## doesn't natter b/c neither of these sets are used in PCA
 iso_a.nomis <- psych::alpha(nels[, c("popul", "athl", "social", "gdstud",
-                      "imptnt", "trble", "leader")])
+                      "imptnt", "trbl", "leadgrp")])
 iso_a.nomis$total[2]
 
 ## alpha on popularity subset. closely consistent with stata
@@ -195,7 +207,46 @@ iso_a.sub <- psych::alpha(nels[, c(iso_sub)])
 iso_a.sub$total[2]
 
 
+
 ## COMPUTE PRINCIPAL COMPONENTS & LOADINGS
 
+## subset for efficiency
+iso_only <- subset(nels, select = c(stu_id, c(iso_sub)))
+
+## Using PCA() from FactoMineR
+iso_pca1 <- PCA(iso_only, graph = FALSE)
+  
+  ## get eigenvalues. consistent w/ stata!
+  iso_pca1$eig
+  
+  ## get correlations. also consistent with stata!
+  iso_pca1$var$coord
+  
+  
+  
+  
 
 
+## Using prcomp() from base
+iso_pca2 <- prcomp(iso_only, scale. = TRUE, retx = TRUE)
+
+  ## get eigenvalues by squaring the sdev vector
+  ## matches PCA() results and stata
+  ## method from: https://stat.ethz.ch/pipermail/r-help/2005-August/076610.html
+  iso_pca2$sdev^2
+  
+  
+  ## get predicted vars
+  iso_pred2 <-  data.frame(predict(iso_pca2))
+  head(iso_pred2)
+
+
+
+## Using princomp()
+iso_pca3 <- princomp(iso_only, scores = TRUE, cor = TRUE)
+summary(iso_pca3)
+iso_pca3$sdev^2
+
+loadings(iso_pca3)
+
+iso_pca3$scores[1:10]

@@ -8,3 +8,4 @@
 *.rdata
 *.csv
 *.txt
+.Rproj.user
