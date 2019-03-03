@@ -6,13 +6,18 @@
 ## for detailed descriptives & Cronbach's alpha
 library(psych)
 
+## For Principal Components
+library(FactoMineR)
+
+## for regression
+library(car)
+
 ## for lots of great shit!
 ## important to load last!
 library(tidyverse)
 
 
-## For Principal Components
-library(FactoMineR)
+
 
 ## import csv. takes a few minutes (like 2 on current machine)
 nels <- read_csv("data/nels_88_92_stmeg_v1_0.csv")
@@ -93,7 +98,7 @@ summary(nels$dropout)
 
 
 
-## ISOLATION RECODING ====
+## ISOLATION PCA CLEANING ====
 
 ## define list of popularity/isolation variables
 
@@ -167,7 +172,7 @@ describe(nels[, c(iso_names)])
 
 
 
-## ISOLATION PRINCIPAL COMPONENTS ====
+## ISOLATION PCA PRELIMS ====
 
 ## GET CORRELATION MATRIX & P-VALUES
 
@@ -232,12 +237,31 @@ head(iso_only)
 ## using psych::principal
 iso_pca <- principal(iso_only, rotate = "varimax", scores = TRUE)
 ## consistent w/ stata! only 1 factor retained, just like stata
-head(iso_pca4$scores)
+head(iso_pca$scores)
 ## further stata checks:
   iso_pca$values ## eigenvalues - good!
   iso_pca$loadings ## loadings - good!
   1 - iso_pca$communality ## uniqueness - good!
-    
+  
+
+## convert scores to a d.f. w/ only stu_id & PCA score
+iso_scores <- as.data.frame(iso_pca$scores)
+iso_scores <- iso_scores %>% 
+  ## rownames back to column
+  rownames_to_column(var = "stu_id") %>%
+  ## rename PC1 variable
+  mutate(isolation = PC1) %>% 
+  ## drop rown number column
+  select(stu_id, isolation)
+  
+## match to main d.f.
+nels <- nels %>% 
+  merge(iso_scores, by = "stu_id", sort = FALSE)
+## looks good!
+head(nels[, c(1, 6831:6843)])
+
+
+## PCA REJECTS ====
     # ## ALL THE METHODS BELOW DO *NOT* PROVIDE *ROTATED* LOADINGS AND SCORES
     # ## I DON'T REMEMBER WHY ROTATING WAS IMPORTANT, BUT THAT'S WHAT WE DID
     # ## IN STATA. THERE ARE OTHER WAYS TO GET THEM, PROVIDED HERE:
@@ -279,5 +303,71 @@ head(iso_pca4$scores)
     #   
     #   head(iso_pca3$scores)
 
+
+
+
+
+## SELF-CONCEPT ========
+
+## check number of missings codded as 99.98 - matches stata
+sum(as.logical(which(nels$f1cncpt2 == 99.98)))
+## replace w/ NA
+nels$f1cncpt2[nels$f1cncpt2 == 99.98] <- NA
+  ## make sure that worked - good!
+  sum(is.na(nels$f1cncpt2))
+## drop missings
+nels <- nels %>% drop_na(f1cncpt2)
+  ## make sure that worked - good!
+  sum(is.na(nels$f1cncpt2))
+## rename
+nels <- nels %>% mutate(selfcncpt = f1cncpt2)
+
+
+
+## DEPRESSION PCA CLEANING ====
+
+## get numbers of columns in psych subset - yiels 742:755
+psych_nos <- grep("^f1s62", colnames(nels))
+
+## convert to factor:
+nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)], as.factor)
+
+## replace missing codes w/ NA
+nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)],
+                              function(x) replace(x, x %in% 6:8, NA))
+
+## drop unused 6 & 8 levels
+nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)], droplevels)
+
+## drop missings - N matches stata!
+nels <- nels %>% drop_na(c(psych_nos))
+
+
+
+## subset & rename
+depr_only <- nels %>% 
+  select(stu_id, f1s62a, f1s62d, f1s62e, f1s62h, 
+         f1s62i, f1s62j, f1s62l, f1s62n) %>% 
+  `colnames<-`(c("stu_id", "regard", "worth", "ability", "satis",
+               "useless", "nogood", "proud", "empty"))
+
+
+## reverse coding on poitively coded/negatively worded questions
+## makes incresing scores indicate increasingly negative symptoms
+
+  ## check original
+  sapply(depr_only[,-1], summary)
+  
+  ## reverse last 4
+  depr_only[, 6:9] <- lapply(depr_only[, 6:9], 
+                             function(x) car::recode(x, "1 = 4; 2 = 3; 
+                                                     3 = 2; 4 = 1"))
+  
+  ## it works!
+  sapply(depr_only[,-1], summary)
+  
+
+## convert back to numeric to use in PCA
+depr_only[, 2:9] <- lapply(depr_only[, 2:9], as.numeric)
 
 
