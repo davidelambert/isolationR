@@ -223,10 +223,13 @@ iso_only <- nels %>%
 ## convert stu_id to rownnames for matching later
 ## need a data.frame, not a tibble
 iso_only <- as.data.frame(iso_only)
+
 ## assign rownames
 rownames(iso_only) <- iso_only[, 1]
+
 ## drop stu_id column
 iso_only <- iso_only[,-1]
+
 ## loks good!
 head(iso_only)
 
@@ -371,3 +374,23 @@ depr_only <- nels %>%
 depr_only[, 2:9] <- lapply(depr_only[, 2:9], as.numeric)
 
 
+
+
+
+
+## DEPRESSION PCA ====
+
+## convert from tibble to d.f.
+depr_only <- as.data.frame(depr_only)
+
+## assign rownames
+rownames(depr_only) <- depr_only[, 1]
+
+## delete stu_id column
+depr_only <- depr_only[, -1]
+
+## conduct PCA
+depr_pca <- psych::principal(depr_only, rotate = "varimax", scores = TRUE)
+head(depr_pca$scores)
+
+depr_pca$values
