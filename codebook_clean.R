@@ -3,17 +3,14 @@
 ## for correlation matrices w/ significance stars
 ## library(Hmisc) prob can just do with corr()
 
-## for detailed descriptives & Cronbach's alpha
+## for regression anakysis, mostly from pkg:car
+## also, just good practice
+library(AER)
+
+## for PCA & detailed descriptives
 library(psych)
 
-## For Principal Components
-library(FactoMineR)
-
-## for regression
-library(car)
-
-## for lots of great shit!
-## important to load last!
+## for lostd of shit - important to load last
 library(tidyverse)
 
 
@@ -331,6 +328,7 @@ nels <- nels %>% mutate(selfcncpt = f1cncpt2)
 
 ## get numbers of columns in psych subset - yiels 742:755
 psych_nos <- grep("^f1s62", colnames(nels))
+psych_nos
 
 ## convert to factor:
 nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)], as.factor)
@@ -358,8 +356,12 @@ depr_only <- nels %>%
 ## reverse coding on poitively coded/negatively worded questions
 ## makes incresing scores indicate increasingly negative symptoms
 
-  ## check original
+  ## check original by frequency and by mean
+  ## consistent w/ stata on freq.
+  ## means of on last 4 b/c not reversed yet.
   sapply(depr_only[,-1], summary)
+  sapply(depr_only[,-1], function(x) summary(as.numeric(x)))
+
   
   ## reverse last 4
   depr_only[, 6:9] <- lapply(depr_only[, 6:9], 
@@ -368,7 +370,7 @@ depr_only <- nels %>%
   
   ## it works!
   sapply(depr_only[,-1], summary)
-  
+  sapply(depr_only[,-1], function(x) summary(as.numeric(x)))
 
 ## convert back to numeric to use in PCA
 depr_only[, 2:9] <- lapply(depr_only[, 2:9], as.numeric)
@@ -380,6 +382,15 @@ depr_only[, 2:9] <- lapply(depr_only[, 2:9], as.numeric)
 
 ## DEPRESSION PCA ====
 
+## alpha on all except "emotionally empty" - close to stata
+depr_a.noemp <- psych::alpha(depr_only[, 2:8])
+depr_a.noemp$total[2]
+
+## alpha on all - also close to stata
+depr_a.all <- psych::alpha(depr_only[, 2:9])
+depr_a.all$total[2]
+
+
 ## convert from tibble to d.f.
 depr_only <- as.data.frame(depr_only)
 
@@ -389,8 +400,35 @@ rownames(depr_only) <- depr_only[, 1]
 ## delete stu_id column
 depr_only <- depr_only[, -1]
 
-## conduct PCA
+## conduct PCA - yeilds different results from stata!
+## stata loads onto 2 components w/ eigenvalues of 
+## 2.48736 and 2.42637.
+## Unknown reason - explore alternatives like
+  ## using factor analysis
+  ## using all psych components
 depr_pca <- psych::principal(depr_only, rotate = "varimax", scores = TRUE)
 head(depr_pca$scores)
 
+## supplemental analysis
 depr_pca$values
+depr_pca$loadings 
+1 - depr_pca$communality ## kinda low uniqueness....
+
+
+## just roll with it for now - explore other alternatives as above later
+
+## scores to data frame
+depr_scores <- as.data.frame(depr_pca$scores)
+
+## rownames back to stu_id column
+depr_scores <- depr_scores %>% 
+  rownames_to_column(var = "stu_id") %>% 
+  mutate(depression = PC1) %>% 
+  select(stu_id, depression)
+
+## merge back into main dataset
+nels <- nels %>% 
+  merge(depr_scores, by = "stu_id", sort = FALSE)
+
+## looks good, given weird mismatch w/stata
+head(nels[, c(1, 6831:6834, 6843:6845)])
