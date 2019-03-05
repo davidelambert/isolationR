@@ -90,7 +90,7 @@ nels <- nels %>%
   mutate(dropout = as.factor(f2univ2d)) %>% 
   ## below recodes and converts to a logical binary
   mutate(dropout = recode(dropout, `1` = FALSE, `2` = FALSE, `3` = TRUE))
-## n's are consistent with stata
+## freq's are consistent with stata
 summary(nels$dropout)
 
 
@@ -98,20 +98,22 @@ summary(nels$dropout)
 ## ISOLATION PCA CLEANING ====
 
 ## define list of popularity/isolation variables
+  ## match
+  iso_vars <- grep("^f1s67", colnames(nels))
+  ## get names instead of numbers
+  iso_vars <- colnames(nels[, c(iso_vars)])
 
-iso_vars <- c("f1s67a", "f1s67b", "f1s67c", "f1s67d", 
-               "f1s67e", "f1s67f", "f1s67g", "f1s67h")
+  ## old version
+  ## iso_vars <- c("f1s67a", "f1s67b", "f1s67c", "f1s67d", 
+  ##              "f1s67e", "f1s67f", "f1s67g", "f1s67h")
 
 ## check example class: they're numeric
 sapply(nels[, c(iso_vars)], class)
 
-## get column numbers, just for memory (also works with names)
-iso_nos <- match(iso_vars, names(nels))
-iso_nos
 
 ## convert each to factor, using lapply
 ## for future  ref, lapply(argument to supply to function, funtion w/o ())
-nels[, 801:808] <- lapply(nels[, 801:808], as.factor)
+nels[, c(iso_vars)] <- lapply(nels[, c(iso_vars)], as.factor)
 
 ## check to make sure - yep!
 sapply(nels[, c(iso_vars)], class)
@@ -330,21 +332,21 @@ nels <- nels %>% mutate(selfcncpt = f1cncpt2)
 ## DEPRESSION PCA CLEANING ====
 
 ## get numbers of columns in psych subset - yiels 742:755
-psych_nos <- grep("^f1s62", colnames(nels))
-psych_nos
+psych_vars <- grep("^f1s62", colnames(nels))
+psych_vars <- colnames(nels[, c(psych_vars)])
 
 ## convert to factor:
-nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)], as.factor)
+nels[, c(psych_vars)] <- lapply(nels[, c(psych_vars)], as.factor)
 
 ## replace missing codes w/ NA
-nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)],
+nels[, c(psych_vars)] <- lapply(nels[, c(psych_vars)],
                               function(x) replace(x, x %in% 6:8, NA))
 
 ## drop unused 6 & 8 levels
-nels[, c(psych_nos)] <- lapply(nels[, c(psych_nos)], droplevels)
+nels[, c(psych_vars)] <- lapply(nels[, c(psych_vars)], droplevels)
 
 ## drop missings - N matches stata!
-nels <- nels %>% drop_na(c(psych_nos))
+nels <- nels %>% drop_na(c(psych_vars))
 
 
 
@@ -403,22 +405,15 @@ rownames(depr_only) <- depr_only[, 1]
 ## delete stu_id column
 depr_only <- depr_only[, -1]
 
-## conduct PCA - yeilds different results from stata!
-## stata loads onto 2 components w/ eigenvalues of 
-## 2.48736 and 2.42637.
-## Unknown reason - explore alternatives like
-  ## using factor analysis
-  ## using all psych components
-depr_pca <- psych::principal(depr_only, rotate = "varimax", scores = TRUE)
+## conduct PCA - now matches stata (or at least very very close)
+depr_pca <- psych::principal(depr_only, rotate = "varimax", nfactors = 2, scores = TRUE)
 head(depr_pca$scores)
 
 ## supplemental analysis
-depr_pca$values
-depr_pca$loadings 
-1 - depr_pca$communality ## kinda low uniqueness....
+depr_pca$values  ## now matches stata
+depr_pca$loadings  ## now close to stata, but not exact
+1 - depr_pca$communality ## now matches stata
 
-
-## just roll with it for now - explore other alternatives as above later
 
 ## scores to data frame
 depr_scores <- as.data.frame(depr_pca$scores)
@@ -426,7 +421,7 @@ depr_scores <- as.data.frame(depr_pca$scores)
 ## rownames back to stu_id column
 depr_scores <- depr_scores %>% 
   rownames_to_column(var = "stu_id") %>% 
-  mutate(depression = PC1) %>% 
+  mutate(depression = RC1) %>% 
   select(stu_id, depression)
 
 ## merge back into main dataset
@@ -443,7 +438,7 @@ head(nels[, c(1, 6831:6834, 6843:6845)])
 
 ## subset & rename
 depr2 <- nels %>% 
-  select(stu_id, c(psych_nos)) %>% 
+  select(stu_id, c(psych_vars)) %>% 
   `colnames<-`(c("stu_id", "feelgood", "noctrl", "luckimpt1", "worth",
                  "ability", "obstrd", "planfail", "selfsat", "useless",
                  "nogood", "planwork", "nopride", "luckimpt2", "empty"))
@@ -514,3 +509,37 @@ head(nels[, c(1, 6831:6834, 6843:6847)])
 
 
 ## COVARIATE CLEANING =====
+
+## dummy on male sex
+  class(nels$sex) ## currently numeric, 1 = male, 2 = female
+  ## drop missings - should drop any, but just for good measure
+  nels <- nels %>% drop_na(sex)
+  nels$male <- ifelse(nels$sex == 1, nels$male <- TRUE, nels$male <- FALSE)
+  ## matches stata
+  summary(nels$male)
+
+
+## 10th grade composite SES
+  ## recode numbered missings (there are none - for good measure)
+  nels$f1ses[nels$f1ses == 99.998] <- NA
+  ## drop missings (there are none - for good measure)
+  nels <- nels %>% drop_na(f1ses)
+  ## matches stata
+  summary(nels$f1ses)
+  
+
+## Single-category race
+  ## convert to factor & count
+  nels$race_bu <- nels$race
+  nels$race <- as.factor(nels$race)
+  summary(nels$race) ## matches stata
+  nels$race <- recode(nels$race, `1` = "asian", `2` = "hispanic",
+                      `3` = "black", `4` = "white", `5` = "natam", `8`= NA)
+      
+    
+    
+    
+    
+    
+    
+    
