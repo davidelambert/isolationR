@@ -421,7 +421,7 @@ depr_scores <- as.data.frame(depr_pca$scores)
 ## rownames back to stu_id column
 depr_scores <- depr_scores %>% 
   rownames_to_column(var = "stu_id") %>% 
-  mutate(depression = RC1) %>% 
+  mutate(depression = RC1) %>% ## keep only 1st component, as in stata
   select(stu_id, depression)
 
 ## merge back into main dataset
@@ -533,13 +533,86 @@ head(nels[, c(1, 6831:6834, 6843:6847)])
   nels$race_bu <- nels$race
   nels$race <- as.factor(nels$race)
   summary(nels$race) ## matches stata
+  ## descriptive names. can't do 8 = NA for some reason
   nels$race <- recode(nels$race, `1` = "asian", `2` = "hispanic",
-                      `3` = "black", `4` = "white", `5` = "natam", `8`= NA)
-      
-    
-    
-    
-    
-    
-    
-    
+                      `3` = "black", `4` = "white", `5` = "natam", `8`= "missing")
+  ## convert "missing" to NA
+  nels$race[nels$race == "missing"] <- NA
+  ## drop "missing" level
+  nels$race <- droplevels(nels$race)
+  ## drop NA's
+  nels <- nels %>% drop_na(race)
+  summary(nels$race) ## matches stata
+
+## dummy on nonwhite status
+  nels$nonwhite <- ifelse(nels$race != "white", nels$nonwhite <- TRUE, 
+                          nels$nonwhite <- FALSE)
+  summary(nels$nonwhite)  ## matches stata
+  
+## dummy on hispanic status
+  nels$hispanic <- ifelse(nels$race == "hispanic", nels$hispanic <- TRUE, 
+                          nels$hispanic <- FALSE)
+  summary(nels$hispanic)
+
+## dummy on 1st language spanish speaker
+  ## first convert original language variable to factor
+  nels$f1n12 <- as.factor(nels$f1n12)
+  summary(nels$f1n12) ## matches stata
+  ## convert missing code 98 to NA
+  nels$f1n12[nels$f1n12 == 98] <- NA
+  ## drop level 98
+  nels$f1n12 <- droplevels(nels$f1n12)
+  ## drop missings
+  nels <- nels %>% drop_na(f1n12)
+  ## create spanish language dummy
+  nels$spanish <- ifelse(nels$f1n12 == 2, nels$spanish <- TRUE, 
+                         nels$spanish <- FALSE)
+  summary(nels$spanish) ## looks good!
+  
+## school percentage white
+  ## convert original to factor
+  nels$f1c27f <- as.factor(nels$f1c27f)
+  summary(nels$f1c27f) ## matches stata
+  ## convert missing/refuse codes to NA
+  nels$f1c27f[nels$f1c27f == 997] <- NA
+  nels$f1c27f[nels$f1c27f == 998] <- NA
+  ## drop those levels  
+  nels$f1c27f <- droplevels(nels$f1c27f)
+  ## drop missings
+  nels <- nels %>% drop_na(f1c27f)
+  summary(nels$f1c27f) ## matches stata
+  ## new variable w/ desciptive name
+  nels$pctwht <- nels$f1c27f
+  ## rename levels & make sure its ordered
+  nels$pctwht <- recode_factor(nels$pctwht, `1` = "0-25", `2` = "26-50",
+                               `3` = "51-75", `4` = "76-90", `5` = "91-100",
+                               .ordered = TRUE)
+  summary(nels$pctwht) ## looks good!
+  
+## dummy on school is majority white
+  nels$majwht <- ifelse(nels$pctwht == "0-25" | nels$pctwht == "26-50",
+                        nels$majwht <- FALSE, nels$majwht <- TRUE)
+  summary(nels$majwht) ## matches stata
+
+## interaction dummy between hispanic student & majority white school
+  nels <- nels %>% 
+    mutate(hispwht = hispanic * majwht)
+  ## convert to logical
+  nels$hispwht <- as.logical(nels$hispwht)
+  summary(nels$hispwht) ## matches stata
+  
+  
+  
+## FINAL SUBSET & OUTPUT ====
+  ## reminder
+  head(nels[, c(1, 6831:6834, 6843:6854)])
+  
+  ## subset
+  small <- nels %>% 
+    select(stu_id, f1sch_id, by_avg, f1_avg, f2_avg, dropout, isolation,
+           selfcncpt, depression, depr2, depr3, male, race, nonwhite,
+           hispanic, spanish, pctwht, majwht, hispwht)
+  
+  ## write out
+  write.csv(small, file = "nels_small.csv", row.names = FALSE)
+  
