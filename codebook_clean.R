@@ -30,6 +30,7 @@ backup <- nels
 ## standardized test score averages & dropout probability
 
 ## create list of each relevant test score column
+## ***** f2 scores NOT USED IN ANALYSIS: drop in future! ******
 irt_names <- c("by2xrstd", "by2xmstd", "by2xsstd", "by2xhstd", 
                "f12xrstd", "f12xmstd", "f12xsstd", "f12xhstd",
                "f22xrstd", "f22xmstd", "f22xsstd", "f22xhstd")
@@ -63,6 +64,7 @@ describe(nels[, c(irt_names)])
 nels <- nels %>% drop_na(c(irt_names))
 
 ## create unweighted averages
+## **** CAN DROP F2 LINE IN FUTURE WHEN DROPPING F2 SCORES IN GENERAL *****
 nels <- nels %>% 
   mutate(by_avg = ((by2xrstd + by2xmstd + by2xsstd + by2xmstd) / 4)) %>% 
   mutate(f1_avg = ((f12xrstd + f12xmstd + f12xsstd + f12xmstd) / 4)) %>% 
@@ -85,6 +87,7 @@ summary(nels$f2univ2d)
 class(nels$f2univ2d)
 
 ## add new column & convert to factor
+## **** IN FUTURE, TRY TO DO W/ ifelse(), PROB FASTER *****
 nels <- nels %>% 
   ## after the below, only levels 1:3 remain, n's consistent w/ stata
   mutate(dropout = as.factor(f2univ2d)) %>% 
@@ -150,6 +153,7 @@ describe(nels[, c(iso_vars)])
 
 
 ## make new columns with descriptive names (preserving orgininals)
+## **** IN FUTURE, JUST RENAME USING `colnames`<-() - FASTER
 nels <- nels %>% 
   mutate(popul = f1s67a) %>% 
   mutate(athl = f1s67b) %>% 
@@ -325,6 +329,7 @@ nels <- nels %>% drop_na(f1cncpt2)
   ## make sure that worked - good!
   sum(is.na(nels$f1cncpt2))
 ## rename
+## **** JUST USE `colnames`<-() FOR SPEED
 nels <- nels %>% mutate(selfcncpt = f1cncpt2)
 
 
@@ -333,6 +338,7 @@ nels <- nels %>% mutate(selfcncpt = f1cncpt2)
 
 ## get numbers of columns in psych subset - yiels 742:755
 psych_vars <- grep("^f1s62", colnames(nels))
+## **** PROBABLY UNNECESSARY ****
 psych_vars <- colnames(nels[, c(psych_vars)])
 
 ## convert to factor:
@@ -428,7 +434,7 @@ depr_scores <- depr_scores %>%
 nels <- nels %>% 
   merge(depr_scores, by = "stu_id", sort = FALSE)
 
-## looks good, given weird mismatch w/stata
+## looks good
 head(nels[, c(1, 6831:6834, 6843:6845)])
 
 
@@ -477,7 +483,7 @@ depr2_fa <- psych::fa(depr2[, 2:15], rotate = "varimax")
 depr2_fa$values
 depr2_fa$loadings
 ## kind low uniqueness, but roll w/ it
-depr2_fa$uniquenesses ## sysnonym for: 1 - depr2_fa$communality
+depr2_fa$uniquenesses ## synonym for: 1 - depr2_fa$communality
 
 ## predictions
 depr2_scores <- as.data.frame(predict.psych(depr2_fa, depr2[, 2:15]))
@@ -582,24 +588,24 @@ head(nels[, c(1, 6831:6834, 6843:6847)])
   nels <- nels %>% drop_na(f1c27f)
   summary(nels$f1c27f) ## matches stata
   ## new variable w/ desciptive name
-  nels$pctwht <- nels$f1c27f
+  nels$pctwhite <- nels$f1c27f
   ## rename levels & make sure its ordered
-  nels$pctwht <- recode_factor(nels$pctwht, `1` = "0-25", `2` = "26-50",
+  nels$pctwhite <- recode_factor(nels$pctwhite, `1` = "0-25", `2` = "26-50",
                                `3` = "51-75", `4` = "76-90", `5` = "91-100",
                                .ordered = TRUE)
-  summary(nels$pctwht) ## looks good!
+  summary(nels$pctwhite) ## looks good!
   
 ## dummy on school is majority white
-  nels$majwht <- ifelse(nels$pctwht == "0-25" | nels$pctwht == "26-50",
-                        nels$majwht <- FALSE, nels$majwht <- TRUE)
-  summary(nels$majwht) ## matches stata
+  nels$majwhite <- ifelse(nels$pctwhite == "0-25" | nels$pctwhite == "26-50",
+                        nels$majwhite <- FALSE, nels$majwhite <- TRUE)
+  summary(nels$majwhite) ## matches stata
 
 ## interaction dummy between hispanic student & majority white school
   nels <- nels %>% 
-    mutate(hispwht = hispanic * majwht)
+    mutate(hispwhite = hispanic * majwhite)
   ## convert to logical
-  nels$hispwht <- as.logical(nels$hispwht)
-  summary(nels$hispwht) ## matches stata
+  nels$hispwhite <- as.logical(nels$hispwhite)
+  summary(nels$hispwhite) ## matches stata
   
   
   
@@ -610,9 +616,12 @@ head(nels[, c(1, 6831:6834, 6843:6847)])
   ## subset
   small <- nels %>% 
     select(stu_id, f1sch_id, by_avg, f1_avg, f2_avg, dropout, isolation,
-           selfcncpt, depression, depr2, depr3, male, race, nonwhite,
-           hispanic, spanish, pctwht, majwht, hispwht)
+           selfcncpt, depression, depr2, depr3, male, f1ses, race, nonwhite,
+           hispanic, spanish, pctwhite, majwhite, hispwhite)
   
-  ## write out
+  ## write out small version
   write.csv(small, file = "nels_small.csv", row.names = FALSE)
+  
+  ## write out large version
+  write.csv(nels, file = "nels_large.csv", row.names = FALSE)
   
