@@ -1,7 +1,7 @@
 ## IMPORT & SETUP ====
 
 ## for correlation matrices w/ significance stars
-## library(Hmisc) prob can just do with corr()
+## library(Hmisc) prob can just do with cor()
 
 ## for regression anakysis, mostly from pkg:car
 ## also, just good practice
@@ -185,7 +185,10 @@ describe(nels[, c(iso_names)])
   #   round(iso_corrmat$P, digits = 3)
 
 ## Correlation matrix
-round(cor(nels[, c(iso_names)]), 3)
+## round(cor(nels[, c(iso_names)]), 3)
+
+## Better: lower triangle only & no rounding necessary
+lowerCor(nels[, c(iso_names)])
 
 
 
@@ -432,3 +435,82 @@ nels <- nels %>%
 
 ## looks good, given weird mismatch w/stata
 head(nels[, c(1, 6831:6834, 6843:6845)])
+
+
+
+
+## DEPRESSION FACTOR ANALYSIS =====
+
+## subset & rename
+depr2 <- nels %>% 
+  select(stu_id, c(psych_nos)) %>% 
+  `colnames<-`(c("stu_id", "feelgood", "noctrl", "luckimpt1", "worth",
+                 "ability", "obstrd", "planfail", "selfsat", "useless",
+                 "nogood", "planwork", "nopride", "luckimpt2", "empty"))
+
+
+  ## check original by frequency and by mean
+  ## consistent w/ stata on freq.
+  ## means of on last 4 b/c not reversed yet.
+  sapply(depr2[,-1], summary)
+  sapply(depr2[,-1], function(x) mean(as.numeric(x)))
+
+  
+  ## reverse coding on positive coding/negative wording
+  ## means all increasing scores are increasingly bad
+  depr2[, c(3:4, 7:8, 10:11, 13:15)] <- lapply(
+     depr2[, c(3:4, 7:8, 10:11, 13:15)], function(x) car::recode(
+                                                      x, "1 = 4; 2 = 3; 3 = 2; 4 = 1"))
+  
+  ## looks good - matches stata
+  sapply(depr2[,-1], summary)
+  sapply(depr2[,-1], function(x) mean(as.numeric(x)))
+
+## convert back to numeric to use in PCA
+depr2[, 2:15] <- lapply(depr2[, 2:15], as.numeric)
+
+
+## overall alpha
+depr2_a.all <- psych::alpha(depr2[, 2:15])
+depr2_a.all$total[2]
+## HIGHER than the condensed ones!
+depr_a.all$total[2]
+
+
+## conduct factor alaysis
+depr2_fa <- psych::fa(depr2[, 2:15], rotate = "varimax")
+depr2_fa$values
+depr2_fa$loadings
+## kind low uniqueness, but roll w/ it
+depr2_fa$uniquenesses ## sysnonym for: 1 - depr2_fa$communality
+
+## predictions
+depr2_scores <- as.data.frame(predict.psych(depr2_fa, depr2[, 2:15]))
+## right number of obs, but no ids - do right join later
+head(depr2_scores)
+
+
+
+## secondary factor analysis using only same vars as PCA
+## explains higher proportion of variance (40% vs 31%)
+## still pretty low, but use in modelling
+depr3_fa <- fa(depr2[, c(2,5,6,9,10,11,13,15)], rotate = "varimax")
+depr3_fa$values
+depr3_fa$loadings
+depr3_fa$uniquenesses
+
+## predictions for restricted model
+depr3_scores <- as.data.frame(predict.psych(depr3_fa, 
+                                            depr2[, c(2,5,6,9,10,11,13,15)]))
+
+## join prediction columns & drop individual variables
+depr2$depr2 <- depr2_scores$MR1
+depr2$depr3 <- depr3_scores$MR1
+depr2 <- depr2[, c(1, 16:17)]
+
+## merge into main dataset
+nels <- merge(nels, depr2, by = "stu_id", sort = FALSE)
+head(nels[, c(1, 6831:6834, 6843:6847)])
+
+
+## COVARIATE CLEANING =====
