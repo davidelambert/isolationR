@@ -9,3 +9,4 @@
 *.csv
 *.txt
 .Rproj.user
+*.dta
