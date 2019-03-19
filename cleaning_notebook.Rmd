@@ -1,7 +1,0 @@
----
-title: Social Isolation on Student Outcomes in High School
-author: David Lambert and Isaac Irby
-output: html_document
----
-
-# Import
